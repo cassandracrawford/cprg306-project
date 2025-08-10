@@ -1,36 +1,23 @@
-import { cookies } from "next/headers";
+// Renders the home page after logged-in - shows the world map to view itineraries
+// Uses the server-side Supabase client to read session from cookies
+// If not authenticated or email confirmed, will not render
 import { redirect } from "next/navigation";
-import { createServerClient } from "@supabase/ssr";
+import { createSupabaseServer } from "@/utils/server";
 import WorldMap from "@/components/WorldMap";
 
 export default async function MyItinerariesPage() {
-  const cookieStore = await cookies();
+  // Create Supabase server client
+  const supabase = await createSupabaseServer();
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
+  // Read current user from server
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/?unauthorized=1");
+  if (!user) redirect("/?auth=required"); // not logged in
+  if (!(user.email_confirmed_at || user.confirmed_at))
+    redirect("/verify-email"); // email not confirmed
 
-  const confirmed = user.email_confirmed_at || user.confirmed_at;
-  if (!confirmed) redirect("/verify-email");
-
+  // Auth OK and renders the app content
   return <WorldMap />;
 }

@@ -1,27 +1,37 @@
-// components/itineraryTimeline.js
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { createBrowserClient } from "@supabase/ssr";
+import { supabase } from "@/utils/supabaseClient";
 import AddDayModal from "./addDay";
 import AddItemModal from "./addItem";
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+import DeleteConfirmModal from "@/components/deleteConfirmModal";
 
 export default function Timeline({ tripId, onDeleted }) {
   const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState([]); // [{id, day_index, date, items: [...] }]
-  const [selectedDayId, setSelectedDayId] = useState(null);
-  const [addDayOpen, setAddDayOpen] = useState(false);
-  const [addItemOpen, setAddItemOpen] = useState(null); // itinerary_day.id to add into
 
-  // Fetch itinerary days + items
+  // State to manage list of days - days within the itinerary and selected day
+  const [days, setDays] = useState([]);
+  const [selectedDayId, setSelectedDayId] = useState(null);
+
+  //  State to manage modals
+  const [addDayOpen, setAddDayOpen] = useState(false);
+  const [addItemOpen, setAddItemOpen] = useState(null);
+  const [showDeleteItem, setShowDeleteItem] = useState(null);
+  const [showDeleteItinerary, setShowDeleteItinerary] = useState(false);
+
+  // Fetch itinerary days + items for a specific trip
   const fetchData = useCallback(async () => {
+    // If tripId is missing, clear UI and stop loading
+    if (!tripId) {
+      setDays([]);
+      setSelectedDayId(null);
+      setLoading(false);
+      return [];
+    }
+
     setLoading(true);
     try {
+      // Fetch days for the trip
       const { data: dayRows, error: dErr } = await supabase
         .from("itinerary_day")
         .select("id, day_index, date")
@@ -31,6 +41,7 @@ export default function Timeline({ tripId, onDeleted }) {
 
       const dayIds = (dayRows ?? []).map((d) => d.id);
 
+      // Fetch items only if there are days
       let itemsByDay = {};
       if (dayIds.length) {
         const { data: itemRows, error: iErr } = await supabase
@@ -40,23 +51,28 @@ export default function Timeline({ tripId, onDeleted }) {
           .order("time", { ascending: true });
         if (iErr) throw iErr;
 
+        // Group items by day id
         (itemRows ?? []).forEach((it) => {
           (itemsByDay[it.itinerary_day_id] ||= []).push(it);
         });
       }
 
-      const enriched =
-        (dayRows ?? []).map((d) => ({ ...d, items: itemsByDay[d.id] || [] })) ||
-        [];
+      // Merge days with their items
+      const enriched = (dayRows ?? []).map((d) => ({
+        ...d,
+        items: itemsByDay[d.id] || [],
+      }));
 
       setDays(enriched);
+
+      // Make sure there is a valid selected day
       if (!selectedDayId && enriched.length) {
         setSelectedDayId(enriched[0].id);
       }
 
       return enriched;
-    } catch (e) {
-      console.warn("[timeline] fetch error:", e?.message || e);
+    } catch (error) {
+      console.warn("[timeline] fetch error:", error?.message || error);
       setDays([]);
       return [];
     } finally {
@@ -68,46 +84,56 @@ export default function Timeline({ tripId, onDeleted }) {
     fetchData();
   }, [fetchData]);
 
-  // Next day number helper
+  // Next day number (used as default in AddDayModal)
   const nextDayIndex =
     (days.length ? Math.max(...days.map((d) => Number(d.day_index) || 0)) : 0) +
     1;
 
+  // Currently selected day object
   const selectedDay = useMemo(
     () => days.find((d) => d.id === selectedDayId) || null,
     [days, selectedDayId]
   );
 
-  // Total cost across the WHOLE itinerary (all days)
+  // Total cost across the whole itinerary (sum of all days)
   const totalCostCAD = useMemo(() => {
-    const total = days.reduce(
+    return days.reduce(
       (sum, d) =>
         sum + d.items.reduce((s, it) => s + (Number(it.cost) || 0), 0),
       0
     );
-    return total;
   }, [days]);
 
-  // Delete a single item (X button)
-  async function handleDeleteItem(itemId) {
-    if (!confirm("Delete this item?")) return;
-    const { error } = await supabase
-      .from("itinerary_items")
-      .delete()
-      .eq("id", itemId);
-    if (error) return alert(error.message);
-    fetchData();
+  // Open the delete item confirmation modal
+  function handleDeleteItem(itemId) {
+    setShowDeleteItem(itemId);
   }
 
-  // Delete the entire itinerary (text button at the bottom)
-  async function handleDeleteItinerary() {
-    if (!confirm("Delete this itinerary and all of its days and items?"))
-      return;
+  // Open the delete itinerary confirmation modal
+  function handleDeleteItinerary() {
+    setShowDeleteItinerary(true);
+  }
 
-    // If you have ON DELETE CASCADE on itinerary_day/itinerary_items, you can just delete the itinerary.
-    // Safe fallback that works without CASCADE:
+  // Confirmed? delete one item then refresh
+  async function handleDeleteConfirmedItem() {
     try {
-      // 1) get day ids
+      const { error } = await supabase
+        .from("itinerary_items")
+        .delete()
+        .eq("id", showDeleteItem);
+      if (error) throw error;
+      await fetchData(); // refresh items
+    } catch (error) {
+      alert(error?.message || "Failed to delete item.");
+    } finally {
+      setShowDeleteItem(null);
+    }
+  }
+
+  // Confirmed? delete entire itinerary - items, days, itinerary
+  async function handleDeleteConfirmedItinerary() {
+    try {
+      // Get day ids
       const { data: dayRows, error: dErr } = await supabase
         .from("itinerary_day")
         .select("id")
@@ -115,15 +141,16 @@ export default function Timeline({ tripId, onDeleted }) {
       if (dErr) throw dErr;
 
       const dayIds = (dayRows ?? []).map((d) => d.id);
+
       if (dayIds.length) {
-        // 2) delete items for those days
+        // Delete items
         const { error: delItemsErr } = await supabase
           .from("itinerary_items")
           .delete()
           .in("itinerary_day_id", dayIds);
         if (delItemsErr) throw delItemsErr;
 
-        // 3) delete days
+        // Delete days
         const { error: delDaysErr } = await supabase
           .from("itinerary_day")
           .delete()
@@ -131,18 +158,20 @@ export default function Timeline({ tripId, onDeleted }) {
         if (delDaysErr) throw delDaysErr;
       }
 
-      // 4) delete itinerary
+      // Delete itinerary
       const { error: delItineraryErr } = await supabase
         .from("itineraries")
         .delete()
         .eq("id", tripId);
       if (delItineraryErr) throw delItineraryErr;
 
-      // Optional: caller can refresh the parent list
+      // Notify parent so it can remove the trip from UI immediately
       onDeleted?.(tripId);
-    } catch (e) {
-      fetchData(); // refresh days
-      return alert(e?.message || "Failed to delete itinerary.");
+    } catch (error) {
+      alert(error?.message || "Failed to delete itinerary.");
+      fetchData();
+    } finally {
+      setShowDeleteItinerary(false);
     }
   }
 
@@ -182,6 +211,7 @@ export default function Timeline({ tripId, onDeleted }) {
             <button
               onClick={() => setAddDayOpen(true)}
               className="px-3 py-1 rounded-full border text-sm bg-white text-[#0d1c24] border-gray-300 hover:bg-gray-50"
+              title={`Next day: ${nextDayIndex}`}
             >
               + Add day
             </button>
@@ -280,16 +310,24 @@ export default function Timeline({ tripId, onDeleted }) {
         </div>
       )}
 
-      {/* Modals */}
+      {/* Confirm modals */}
+      <DeleteConfirmModal
+        open={!!showDeleteItem}
+        onClose={() => setShowDeleteItem(null)}
+        onConfirm={handleDeleteConfirmedItem}
+      />
+      <DeleteConfirmModal
+        open={showDeleteItinerary}
+        onClose={() => setShowDeleteItinerary(false)}
+        onConfirm={handleDeleteConfirmedItinerary}
+      />
+
+      {/* Create or add Modals */}
       <AddDayModal
         itineraryId={tripId}
         open={addDayOpen}
         onClose={() => setAddDayOpen(false)}
-        defaultDayNumber={
-          (days.length
-            ? Math.max(...days.map((d) => Number(d.day_index) || 0))
-            : 0) + 1
-        }
+        defaultDayNumber={nextDayIndex}
         onAdded={async () => {
           const updated = await fetchData();
           if (updated.length) {
@@ -300,7 +338,6 @@ export default function Timeline({ tripId, onDeleted }) {
           }
         }}
       />
-
       <AddItemModal
         itineraryDayId={addItemOpen}
         open={Boolean(addItemOpen)}

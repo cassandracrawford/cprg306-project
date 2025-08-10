@@ -1,5 +1,8 @@
 "use client";
 
+// Login/Register - Landing Page
+// This toggles between login and registration forms
+
 import LoginForm from "@/components/login";
 import SlideShow from "@/components/slideshow";
 import RegisterForm from "@/components/register";
@@ -7,6 +10,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import Typewriter from "typewriter-effect";
 
+// Background images for the slideshow - used in Slideshow component
 const images = [
   // Image Source: https://unsplash.com/photos/dish-on-white-ceramic-plate-N_Y88TWmGwA
   "/images/bg-1.jpg",
@@ -18,21 +22,23 @@ const images = [
   "/images/bg-4.jpg",
 ];
 
-export default function Home() {
+export default function LoginPage() {
+  // To control which form is displayed on the page
   const [isRegister, setIsRegister] = useState(false);
 
   return (
     <main className="flex flex-col lg:flex-row h-screen bg-[#0d1c24] overflow-hidden">
-      <SlideShow images={images} />
+      {/* Left: Slideshow component */}
+      <SlideShow images={images} /> 
 
-      {/* Login or Register */}
+      {/* Right: Login or Register (Auth Form) with the page title and animated subtitle*/}
       <div className="w-full lg:w-[37%] flex-1 lg:h-full flex flex-col bg-[#0d1c24] justify-center font-[var(--font-geist-sans)]">
         {/* Page Title */}
         <div className="w-full flex justify-center">
           <h1 className="text-6xl font-bold text-white lg:text-8xl">Trip|zy</h1>
         </div>
 
-        {/* Typewriter Animation */}
+        {/* Typewriter Animation for the subtitle */}
         <div className="text-white text-2xl w-full flex justify-center mt-3 mb-8 lg:mb-15 opacity-40 font-[var(--font-geist-sans)]">
           <Typewriter
             options={{
@@ -51,7 +57,8 @@ export default function Home() {
             }}
           />
         </div>
-
+        
+        {/* Switch between login and register */}
         <AnimatePresence mode="wait">
           <motion.div
             key={isRegister ? "register" : "login"}

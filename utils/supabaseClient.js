@@ -1,3 +1,4 @@
+// Supabase client for browser
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";

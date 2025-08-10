@@ -7,16 +7,17 @@ import {
   Marker,
 } from "react-simple-maps";
 import LoaderReveal from "@/components/loading";
-import { signOut } from "@/utils/auth";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import countries from "i18n-iso-countries";
 import { supabase } from "@/utils/supabaseClient";
 import wc from "world-countries";
-
 import enLocale from "i18n-iso-countries/langs/en.json";
 
+// Register English country names for i18n-iso-countries lookups
 countries.registerLocale(enLocale);
+
+// Normalize display names coming from world-atlas to match ISO2 lookup keys
 const norm = (s) =>
   s
     .normalize("NFKD")
@@ -24,7 +25,7 @@ const norm = (s) =>
     .replace(/ \(.*\)$/, "")
     .trim();
 
-// Fallback for selectedCountry
+// Fallback for selectedCountry - manual overrides for names that differ from i18n-iso-countries expectations
 const specialISO2 = {
   "United States of America": "US",
   "United Kingdom": "GB",
@@ -37,24 +38,30 @@ const specialISO2 = {
   "North Macedonia": "MK",
   Myanmar: "MM",
   "Timor-Leste": "TL",
+  // add more overrides as needed
 };
 
+// TopoJSON for world shapes
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
+// Compute location coordinates for each ISO2 using world-countries latlng
 const coordsMap = wc.reduce((acc, country) => {
   acc[country.cca2.toUpperCase()] = [country.latlng[1], country.latlng[0]];
   return acc;
 }, {});
 
 export default function WorldMap() {
+  // ISO2 that have itineraries in DB
   const [isoSet, setIsoSet] = useState(new Set());
   const [selectedCountry, setSelectedCountry] = useState(null);
-  const [isLargeScreen, setIsLargeScreen] = useState(false);
+  // only use loader (animation) for large screens
+  const [isLargeScreen, setIsLargeScreen] = useState(false); 
   const [isReady, setIsReady] = useState(false);
 
   const router = useRouter();
 
   // Animation to load only for large screens
+  // Detect large screens + on resize - this controls the LoaderReveal component
   useEffect(() => {
     const checkScreen = () => {
       setIsLargeScreen(window.innerWidth >= 1500);
@@ -66,6 +73,7 @@ export default function WorldMap() {
     return () => window.removeEventListener("resize", checkScreen);
   }, []);
 
+  // Load countries that have itineraries in the database
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -74,7 +82,7 @@ export default function WorldMap() {
         .not("country_iso2", "is", null);
 
       if (error) {
-        console.error(error.message);
+        console.log(error.message);
         return;
       }
 
@@ -87,16 +95,7 @@ export default function WorldMap() {
     })();
   }, []);
 
-  const handleLogout = async () => {
-    const { error } = await signOut();
-    if (error) {
-      console.log("Error: ", error.message);
-      return;
-    }
-
-    router.push("/");
-  };
-
+  // Avoid rendering on first server side rendering pass to prevent hydration issues
   if (!isReady) return null;
 
   const content = (
@@ -120,7 +119,7 @@ export default function WorldMap() {
                     key={geo.rsmKey}
                     geography={geo}
                     onClick={() => {
-                      const raw = geo.properties.name; // from world-atlas
+                      const raw = geo.properties.name; // raw name from world-atlas
                       const name = norm(raw);
                       const iso2 =
                         countries.getAlpha2Code(name, "en") ||
@@ -133,7 +132,7 @@ export default function WorldMap() {
                       if (iso2) {
                         router.push(`/country/${iso2}`);
                       } else {
-                        console.warn("No ISO2 for:", raw);
+                        console.warn("No ISO2 match for:", raw);
                       }
                     }}
                     style={{
@@ -154,10 +153,10 @@ export default function WorldMap() {
             }
           </Geographies>
 
+          {/* Pins for each country that have itineraries in the database */}
           {Array.from(isoSet).map((iso2) => {
             const coords = coordsMap[iso2];
-            console.log("render pin for", iso2, "->", coords);
-            if (!coords) return null;
+            if (!coords) return null; // if no coordinates found
             return (
               <Marker key={iso2} coordinates={coords}>
                 <circle r={4} fill="#facc15" stroke="#fff" strokeWidth={1.5} />
@@ -175,18 +174,12 @@ export default function WorldMap() {
           <Search className="w-7 h-7 text-white" />
         </button>
       </div>
-
-      {/* Logout Button */}
-      <div className="flex justify-center items-center my-2">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="text-[#0d1c24] font-bold hover:cursor-pointer underline hover:text-[#6B7E80]"
-        >
-          Logout
-        </button>
-      </div>
+      <p className="text-center text-sm text-gray-400 my-3">
+        Select a country to view your itineraries
+      </p>
     </div>
   );
+
+  // Use the reveal animation only on big screens
   return isLargeScreen ? <LoaderReveal>{content}</LoaderReveal> : content;
 }

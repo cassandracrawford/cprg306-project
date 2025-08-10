@@ -1,5 +1,6 @@
 "use client";
 
+// Register Form uses the signUp function from the utils/auth
 import { signUp } from "@/utils/auth";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
 import { useState } from "react";
@@ -11,6 +12,7 @@ const inputFocusStyle = "focus:outline-none";
 
 export default function RegisterForm({ onSwitch }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -22,33 +24,68 @@ export default function RegisterForm({ onSwitch }) {
 
   const handleSignUp = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
+    setSuccessMsg("");
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
 
-    setLoading(true);
-    const { data, error } = await signUp(email, password);
-    setLoading(false);
-
-    if (error) {
-      setError(error.message);
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
 
-    const emailConfirmationRequired = !data?.session;
+    setLoading(true);
 
-    if (emailConfirmationRequired) {
-      setError(null);
-      setSuccessMsg("Success! Check your email for a confirmation link.");
-      // Clear form fields
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-    } else {
-      router.push("/my-itineraries");
+    try {
+      const { data, error: signUpError } = await signUp(
+        String(email).trim().toLowerCase(),
+        password
+      );
+
+      if (signUpError) {
+        if (signUpError.message.toLowerCase().includes("already registered")) {
+          setError("This email is already in use. Please log in instead.");
+        } else {
+          setError(signUpError.message);
+        }
+        return;
+      }
+
+      // Supabase duplicate detection
+      const duplicate =
+        data?.user &&
+        Array.isArray(data.user.identities) &&
+        data.user.identities.length === 0;
+
+      if (duplicate) {
+        setError("This email is already in use. Please log in instead.");
+        return;
+      }
+
+      // When email confirmation is required, data.session is null
+      const emailConfirmationRequired = !data?.session;
+
+      if (emailConfirmationRequired) {
+        setSuccessMsg("Success! Check your email for a confirmation link.");
+        // Clear form fields
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
+      } else {
+        router.push("/my-itineraries");
+      }
+    } catch (error) {
+      setError(
+        typeof error?.message === "string"
+          ? error.message
+          : "Something went wrong. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -62,21 +99,33 @@ export default function RegisterForm({ onSwitch }) {
         <input
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (error) setError(null); // clears old error
+            if (successMsg) setSuccessMsg(""); // clears old success
+          }}
           placeholder="Email Address"
           className={inputStyle + " " + inputFocusStyle + " mb-4"}
           required
+          autoComplete="email"
+          disabled={loading}
         />
         <div className="relative w-1/2">
           <input
             type={showPassword ? "text" : "password"}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (error) setError(null); // clears old error
+            }}
             placeholder="Password"
             className={
               inputStyle + " " + inputFocusStyle + " w-full pr-10 mb-4"
             }
             required
+            autoComplete="new-password"
+            disabled={loading}
+            minLength={6}
           />
           <button
             type="button"
@@ -93,31 +142,39 @@ export default function RegisterForm({ onSwitch }) {
         </div>
         <div className="relative w-1/2">
           <input
-            type={showPassword ? "text" : "password"}
+            type={showConfirmPassword ? "text" : "password"}
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              if (error) setError(null); // clears old error
+            }}
             placeholder="Confirm Password"
             className={
               inputStyle + " " + inputFocusStyle + " w-full pr-10 mb-4"
             }
             required
+            autoComplete="new-password"
+            disabled={loading}
+            minLength={6}
           />
           <button
             type="button"
-            onClick={() => setShowPassword((prev) => !prev)}
+            onClick={() => setShowConfirmPassword((prev) => !prev)}
             className="absolute inset-y-0 right-0 pr-1 pb-5 flex items-center text-white"
             tabIndex={-1}
           >
-            {showPassword ? (
+            {showConfirmPassword ? (
               <EyeSlashIcon className="h-4 w-4" />
             ) : (
               <EyeIcon className="h-4 w-4" />
             )}
           </button>
         </div>
-        {/* Error / Success */}
+        {/* Display Error / Success Message */}
         {error && <p className="text-white text-xs mt-2">{error}</p>}
-        {successMsg && <p className="text-white text-xs mt-2">{successMsg}</p>}
+        {!error && successMsg && (
+          <p className="text-white text-xs mt-2">{successMsg}</p>
+        )}
         <button
           type="submit"
           disabled={loading}

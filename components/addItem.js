@@ -1,45 +1,71 @@
 "use client";
 
-import { useState } from "react";
-import { createBrowserClient } from "@supabase/ssr";
+import { useEffect, useState } from "react";
+import { supabase } from "@/utils/supabaseClient";
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
-
-export default function AddItemModal({ itineraryDayId, open, onClose, onAdded }) {
+export default function AddItemModal({
+  itineraryDayId,
+  open,
+  onClose,
+  onAdded,
+}) {
   const [time, setTime] = useState("");
   const [activity, setActivity] = useState("");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [cost, setCost] = useState("");
 
+  // Reset fields whenever the modal opens (optional but nice UX)
+  useEffect(() => {
+    if (open) {
+      setTime("");
+      setActivity("");
+      setLocation("");
+      setNotes("");
+      setCost("");
+    }
+  }, [open]);
+
   if (!open) return null;
 
   async function submit(e) {
     e.preventDefault();
 
+    if (!itineraryDayId) {
+      alert("Missing day id.");
+      return;
+    }
+
+    // Trim activity so whitespace-only doesn't pass required check
+    const activityTrimmed = activity.trim();
+    if (!activityTrimmed) {
+      alert("Activity is required.");
+      return;
+    }
+
+    // Convert cost string to number or null
+    const parsedCost = cost === "" ? null : Number(cost);
+    const safeCost =
+      Number.isFinite(parsedCost) && parsedCost >= 0 ? parsedCost : null;
+
     // currency omitted – Supabase default ('CAD') will be used
-    const { error } = await supabase.from("itinerary_items").insert({
-      itinerary_day_id: itineraryDayId,
-      time: time || null,
-      activity,
-      location: location || null,
-      notes: notes || null,
-      cost: cost ? Number(cost) : null,
-    });
+    try {
+      const { error } = await supabase.from("itinerary_items").insert({
+        itinerary_day_id: itineraryDayId,
+        time: time || null,
+        activity: activityTrimmed,
+        location: location || null,
+        notes: notes || null,
+        cost: safeCost,
+      });
 
-    if (error) return alert(error.message);
+      if (error) return alert(error.message);
 
-    setTime("");
-    setActivity("");
-    setLocation("");
-    setNotes("");
-    setCost("");
-
-    onClose();
-    onAdded?.();
+      onClose();
+      onAdded?.();
+    } catch (error) {
+      alert(error?.message || "Failed to add item.");
+    }
   }
 
   return (
@@ -47,7 +73,13 @@ export default function AddItemModal({ itineraryDayId, open, onClose, onAdded })
       <div className="bg-white p-5 rounded-xl w-full max-w-md">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold">Add item</h3>
-          <button onClick={onClose} className="text-sm text-gray-500">Close</button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm text-gray-500"
+          >
+            Close
+          </button>
         </div>
 
         <form onSubmit={submit} className="space-y-3">
@@ -68,7 +100,7 @@ export default function AddItemModal({ itineraryDayId, open, onClose, onAdded })
               value={activity}
               onChange={(e) => setActivity(e.target.value)}
               required
-              placeholder="Victoria Peak"
+              placeholder="e.g., Hiking"
             />
           </div>
 
@@ -78,7 +110,7 @@ export default function AddItemModal({ itineraryDayId, open, onClose, onAdded })
               className="w-full border rounded px-3 py-2"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="Hong Kong"
+              placeholder="e.g., Banff"
             />
           </div>
 
@@ -105,11 +137,15 @@ export default function AddItemModal({ itineraryDayId, open, onClose, onAdded })
                 value={cost}
                 onChange={(e) => setCost(e.target.value)}
                 placeholder="0.00"
+                inputMode="decimal"
               />
             </div>
           </div>
 
-          <button className="w-full bg-[#0d1c24] text-white rounded py-2">
+          <button
+            type="submit"
+            className="w-full bg-[#0d1c24] text-white rounded py-2"
+          >
             Save item
           </button>
         </form>

@@ -1,7 +1,8 @@
-// components/AddItineraryModal.jsx
 "use client";
 
-import { useState } from "react";
+// Modal component for creating a new itinerary
+
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AddItineraryModal({ open, onClose, iso2 }) {
@@ -9,14 +10,30 @@ export default function AddItineraryModal({ open, onClose, iso2 }) {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+
   const router = useRouter();
+
+  // Reset field whenever modal opens
+  useEffect(() => {
+    if (open) {
+      setTitle("");
+      setStart("");
+      setEnd("");
+      setNotes("");
+    }
+  }, [open]);
 
   if (!open) return null;
 
   async function submit(e) {
     e.preventDefault();
-    setSubmitting(true);
+
+    // To check date validity
+    if (start && end && end < start) {
+      alert("End date cannot be earlier than start date.");
+      return;
+    }
+
     try {
       const res = await fetch("/api/itineraries", {
         method: "POST",
@@ -26,16 +43,17 @@ export default function AddItineraryModal({ open, onClose, iso2 }) {
           start_date: start,
           end_date: end,
           country_iso2: iso2,
+          notes,
         }),
       });
+
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to create itinerary");
+
       onClose();
       router.refresh(); // refresh the Country page list
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setSubmitting(false);
+    } catch (error) {
+      alert(error.message);
     }
   }
 
@@ -44,7 +62,7 @@ export default function AddItineraryModal({ open, onClose, iso2 }) {
       <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">New itinerary</h2>
-          <button onClick={onClose} className="text-sm text-gray-500">
+          <button type="button" onClick={onClose} className="text-sm text-gray-500">
             Close
           </button>
         </div>
@@ -56,7 +74,7 @@ export default function AddItineraryModal({ open, onClose, iso2 }) {
               className="w-full rounded border px-3 py-2"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Spring trip"
+              placeholder="e.g., Summer trip"
               required
             />
           </div>
@@ -97,10 +115,9 @@ export default function AddItineraryModal({ open, onClose, iso2 }) {
 
           <button
             type="submit"
-            disabled={submitting}
             className="w-full rounded bg-[#0d1c24] py-2 text-white font-semibold hover:bg-[#0b2f3c]"
           >
-            {submitting ? "Creating…" : "Create itinerary"}
+            Create Itinerary
           </button>
         </form>
       </div>

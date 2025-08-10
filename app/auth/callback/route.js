@@ -1,3 +1,6 @@
+// OAuth callback: route to handle the OAuth sign-in process
+// receives the authentication response, creates Supabase session
+// then redirects the user to /my-itineraries used by utils/auth.googleSignIn();
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
@@ -5,7 +8,6 @@ export async function GET(req) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
 
-  // prepare the redirect response FIRST, so we can set cookies on it
   const redirectUrl = new URL("/my-itineraries", url.origin);
   const res = NextResponse.redirect(redirectUrl);
 

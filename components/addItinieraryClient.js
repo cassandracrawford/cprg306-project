@@ -1,3 +1,5 @@
+// Client-side wrapper that displays an "Add Itinerary" button
+// and controls the open/close state for the AddItineraryModal component
 "use client";
 import { useState } from "react";
 import AddItineraryModal from "./addItineraryModal";
@@ -9,6 +11,7 @@ export default function AddItineraryClient({ iso2 }) {
       <button
         onClick={() => setOpen(true)}
         className="underline hover:cursor-pointer"
+        type="button"
       >
         Add Itinerary
       </button>

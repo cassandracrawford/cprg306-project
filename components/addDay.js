@@ -1,31 +1,53 @@
 "use client";
-import { useEffect, useState } from "react"; // ⬅ add useEffect
-import { createBrowserClient } from "@supabase/ssr";
+import { useEffect, useState } from "react";
+import { supabase } from "@/utils/supabaseClient";
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
-
-export default function AddDayModal({ itineraryId, open, onClose, defaultDayNumber = 1, onAdded }) {
+export default function AddDayModal({
+  itineraryId,
+  open,
+  onClose,
+  defaultDayNumber = 1,
+  onAdded,
+}) {
   const [dayNumber, setDayNumber] = useState(defaultDayNumber);
   const [date, setDate] = useState("");
 
-  // 🔁 keep defaultDayNumber in sync when opening
+  // Reset form fields when modal opens
   useEffect(() => {
-    if (open) setDayNumber(defaultDayNumber || 1);
-    console.log("[AddDayModal] itineraryId:", itineraryId);
+    if (open) {
+      setDayNumber(defaultDayNumber || 1);
+      setDate("");
+    }
   }, [open, itineraryId, defaultDayNumber]);
 
   if (!open) return null;
 
   async function submit(e) {
     e.preventDefault();
-    const { error } = await supabase
-      .from("itinerary_day")
-      .insert({ itinerary_id: itineraryId, day_index: dayNumber, date: date || null });
-    if (error) return alert(error.message);
-    onClose(); onAdded?.();
+
+    // Make sure a valid positive number even if the input is temporarily empty
+    const safeDay = Math.max(1, Number.isFinite(dayNumber) ? dayNumber : 1);
+
+    try {
+      const { error } = await supabase.from("itinerary_day").insert({
+        itinerary_id: itineraryId,
+        day_index: safeDay,
+        date: date || null,
+      });
+
+      if (error) {
+        const msg = /unique|duplicate/i.test(error.message)
+          ? "That day number already exists for this itinerary."
+          : error.message;
+        alert(msg);
+        return;
+      }
+
+      onClose();
+      onAdded?.();
+    } catch (error) {
+      alert(error?.message || "Failed to add day.");
+    }
   }
 
   return (
@@ -33,13 +55,20 @@ export default function AddDayModal({ itineraryId, open, onClose, defaultDayNumb
       <div className="bg-white p-5 rounded-xl w-full max-w-sm">
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-semibold">Add day</h3>
-          <button onClick={onClose} className="text-sm text-gray-500">Close</button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm text-gray-500"
+          >
+            Close
+          </button>
         </div>
         <form onSubmit={submit} className="space-y-3">
           <div>
             <label className="block text-sm mb-1">Day number</label>
             <input
-              type="number" min={1}
+              type="number"
+              min={1}
               className="w-full border rounded px-3 py-2"
               value={dayNumber}
               onChange={(e) => setDayNumber(+e.target.value)}
@@ -55,7 +84,12 @@ export default function AddDayModal({ itineraryId, open, onClose, defaultDayNumb
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
-          <button className="w-full bg-[#0d1c24] text-white rounded py-2">Save</button>
+          <button
+            type="submit"
+            className="w-full bg-[#0d1c24] text-white rounded py-2"
+          >
+            Save
+          </button>
         </form>
       </div>
     </div>

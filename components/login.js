@@ -1,10 +1,11 @@
 "use client";
 
+// LoginForm Component - uses the auth helpers for sign in
+
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "@/utils/auth";
-import { googleSignIn } from "@/utils/auth";
+import { signIn, googleSignIn } from "@/utils/auth";
 
 const inputStyle =
   "text-white text-sm px-2 border-b-2 border-b-white placeholder-white placeholder:font-normal w-1/2";
@@ -15,24 +16,55 @@ export default function LoginForm({ onSwitch }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
+
+  // Handles email and password login
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (loading) return; // to prevent double submit
     setError(null);
+    setLoading(true);
 
-    const { error } = await signIn(email, password);
-    if (error) {
-      setError(error.message);
-      return;
+    try {
+      const { error: signInError } = await signIn(
+        String(email).trim().toLowerCase(),
+        password
+      );
+      if (signInError) {
+        setError(signInError.message);
+        return;
+      }
+      router.push("/my-itineraries");
+    } catch (error) {
+      setError(
+        typeof error?.message === "string"
+          ? error.message
+          : "Something went wrong. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
-
-    router.push("/my-itineraries");
   };
 
+  // Handle Google OAuth Login (Supabase handles redirect)
   const handleGoogleLogin = async () => {
-    const { error } = await googleSignIn();
-    if (error) setError(error.message);
+    if (loading) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: gError } = await googleSignIn();
+      if (gError) setError(gError.message);
+    } catch (error) {
+      setError(
+        typeof error?.message === "string"
+          ? error.message
+          : "Something went wrong. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -49,7 +81,10 @@ export default function LoginForm({ onSwitch }) {
           onChange={(e) => setEmail(e.target.value)}
           className={inputStyle + " " + inputFocusStyle + " mb-4"}
           required
+          disabled={loading}
+          autoComplete="email"
         />
+        {/* Password with show/hide toggle */}
         <div className="relative w-1/2">
           <input
             type={showPassword ? "text" : "password"}
@@ -60,6 +95,8 @@ export default function LoginForm({ onSwitch }) {
               inputStyle + " " + inputFocusStyle + " w-full pr-10 mb-2"
             }
             required
+            disabled={loading}
+            autoComplete="current-password"
           />
           <button
             type="button"
@@ -74,20 +111,23 @@ export default function LoginForm({ onSwitch }) {
             )}
           </button>
         </div>
+
+        {/* Display error message */}
         <div className="w-1/2">
-          {/* Forgot Password Link */}
-          <p className="text-amber-200 text-sm text-right">Forgot Password?</p>
           {error && (
             <p className="text-white text-sm text-center mt-4">{error}</p>
           )}
         </div>
+
+        {/* Submit Button */}
         <button
           type="submit"
+          disabled={loading}
           className="bg-white/50 text-sm rounded-md w-[40%] mt-6 py-1.5 border-2 border-white/40 text-white/50
                         hover:bg-white/80 hover:cursor-pointer hover:text-white hover:border-white/60
                 "
         >
-          Login
+          {loading ? "Signing in..." : "Login"}
         </button>
       </form>
 

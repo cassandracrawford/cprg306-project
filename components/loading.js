@@ -1,5 +1,8 @@
 "use client";
 
+// Loader Reveal Component: just for animating the "My Itineraries" page after Login
+// This animation design is inspired by: https://examples.motion.dev/react/loading-line-reveal
+
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 
