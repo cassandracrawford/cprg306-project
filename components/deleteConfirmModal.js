@@ -25,13 +25,13 @@ export default function DeleteConfirmModal({ open, onClose, onConfirm }) {
 
           {/* Confirmation text */}
           <h3 className="mb-5 text-sm font-normal text-[#0d1c24] dark:text-gray-400">
-            Are you sure you want to delete this?
+            {`Are you sure you want to delete? This action can't be undone.`}
           </h3>
 
           {/* Confirmation buttons */}
           <button type="button" onClick={onConfirm}
             className="text-white bg-red-700 hover:bg-red-900 font-medium rounded-lg text-xs px-5 py-2.5">
-            Yes, I'm sure
+            {`Yes, I'm sure`}
           </button>
           <button type="button" onClick={onClose}
             className="ml-3 text-xs font-medium text-[#0d1c24] bg-white border border-gray-200 rounded-lg px-5 py-2.5 hover:bg-gray-100">
