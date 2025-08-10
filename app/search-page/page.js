@@ -53,7 +53,7 @@ export default function LandingPage() {
         transition={{ duration: 0.8, ease: "easeOut" }}
       >
         {/* Search Form */}
-        <form onSubmit={handleSearch} className="flex flex-row gap-4 lg:w-[1000px]">
+        <form onSubmit={handleSearch} className="flex flex-col gap-4 sm:flex-row lg:w-[1000px]">
           {/* Web App Name */}
           <h1 className="text-[#0d1c24] font-extrabold text-2xl leading-[2]">Trip|zy</h1>
 

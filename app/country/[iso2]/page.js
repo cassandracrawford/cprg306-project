@@ -45,13 +45,13 @@ export default async function CountryPage(props) {
 
   return (
     <div className="w-full px-10 py-6 lg:w-3/4 mx-auto">
-      <div className="flex flex-col lg:flex-row md:justify-between p-6">
+      <div className="flex flex-col text-center lg:flex-row md:justify-between p-6">
         <h1 className="text-6xl country-heading text-[#0d1c24]">
           {countryName}
         </h1>
         {/* Menu */}
-        <div className="flex lg:items-center">
-          <ul className="flex flex-row gap-4 my-4 lg:m-0">
+        <div className="flex justify-center lg:items-center">
+          <ul className="flex flex-row gap-4 mt-4 lg:m-0">
             <li className="border-r-2 pr-4 underline">
               <AddItineraryClient iso2={iso2} />
             </li>
